@@ -1,4 +1,4 @@
-CPPFLAGS=-I/opt/opencv/include 
+CPPFLAGS=-I/opt/opencv/include
 CXXFLAGS=-Wall -Wextra -Werror
 LDFLAGS=-Wl,-R/opt/opencv/lib -L/opt/opencv/lib
 LDLIBS=\
@@ -7,7 +7,8 @@ LDLIBS=\
 	-lopencv_highgui\
 	-lopencv_features2d\
 	-lopencv_nonfree\
-	-lopencv_calib3d
+	-lopencv_calib3d\
+	-lopencv_flann
 
 BIN=panorama
 
@@ -17,5 +18,3 @@ clean:
 	$(RM) *~ *.png
 cleanall: clean
 	$(RM) $(BIN) *.o *.pdf
-
-
