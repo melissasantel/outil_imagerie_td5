@@ -146,24 +146,25 @@ process(const char* imsname1, const char* imsname2)
   cout<<imd_homography.size()<<endl;
   int xmax=0;
   int ymax=0;
+  Vec3b black(0,0,0);
   for(int i=0; i<imd_homography.cols;i++){
     for(int j=0; j<imd_homography.rows; j++){
-    // if(imd_homography.ptr<Vec3b>(i)[j][0] == 0){
-      if( j > xmax && imd_homography.ptr<Vec3b>(i-1)[j][0] > 0 && imd_homography.ptr<Vec3b>(i)[j][0] == 0){
-        xmax = j;
+      if(imd_homography.ptr<Vec3b>(i)[j] == black){
+        if(i > xmax && imd_homography.ptr<Vec3b>(i)[j-1]!= black){
+          xmax = i;
+        }
+        if(j > ymax && imd_homography.ptr<Vec3b>(i-1)[j]!= black){
+          ymax = j;
+        }
       }
-      if( i > ymax && imd_homography.ptr<Vec3b>(i)[j-1][0] > 0 && imd_homography.ptr<Vec3b>(i)[j][0] == 0){
-        ymax = i;
-      }
-    // }
     }
   }
 
   cout<<xmax<<" et "<<ymax<<endl;
-  // Rect myROI(0, 0, max ,j_black_p);
-  // Mat final_panorama = imd_homography(myROI);
-  //
-  // imshow("final panorama", final_panorama);
+  Rect myROI(0, 0, xmax ,ymax);
+  Mat final_panorama = imd_homography(myROI);
+
+  imshow("final panorama", final_panorama);
 
   waitKey(0);
 }
