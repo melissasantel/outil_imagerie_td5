@@ -17,15 +17,20 @@ using namespace std;
 void
 process(const char* imsname1, const char* imsname2)
 {
-  cout<<"\n---------------------------------------------------\n"<<endl;
+  cout<<"\n----------------------------------------------------\n"<<endl;
   cout<<"\n--------------- EXERCICE : PANORAMA  ---------------\n"<<endl;
-  cout<<"\n---------------------------------------------------\n"<<endl;
+  cout<<"\n----------------------------------------------------\n"<<endl;
 
   //Read imsname1 and imsname2 if they exist
-  Mat ims1 = imread(imsname1,0);
-  Mat ims2 = imread(imsname2,0);
+  Mat ims1_color = imread(imsname1,1);
+  Mat ims2_color = imread(imsname2,1);
 
-  if(!ims1.data || !ims2.data){
+  //Convert the color image in gray
+  Mat ims1_gray, ims2_gray;
+  cvtColor(ims1_color, ims1_gray, CV_BGR2GRAY);
+  cvtColor(ims2_color, ims2_gray, CV_BGR2GRAY);
+
+  if(!ims1_gray.data || !ims2_gray.data){
     cerr<<"Image not found, exit"<<endl;
     exit(EXIT_FAILURE);
   }
@@ -37,18 +42,14 @@ process(const char* imsname1, const char* imsname2)
 
   std::vector<KeyPoint> keypoints_1, keypoints_2;
 
-  detector.detect( ims1, keypoints_1 );
-  detector.detect( ims2, keypoints_2 );
+  detector.detect( ims1_gray, keypoints_1 );
+  detector.detect( ims2_gray, keypoints_2 );
 
   //-- Draw keypoints --//
   Mat img_keypoints_1; Mat img_keypoints_2;
 
-  drawKeypoints( ims1, keypoints_1, img_keypoints_1, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
-  drawKeypoints( ims2, keypoints_2, img_keypoints_2, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
-
-  //-- Show detected (drawn) keypoints
-  imshow("Descripteur SURF image 1", img_keypoints_1 );
-  imshow("Descripteur SURF image 2", img_keypoints_2 );
+  drawKeypoints( ims1_gray, keypoints_1, img_keypoints_1, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
+  drawKeypoints( ims2_gray, keypoints_2, img_keypoints_2, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
 
   //-- Save images with detected (drawn) keypoints
   imwrite("Descripteur_SURF_image_1.png", img_keypoints_1 );
@@ -59,8 +60,8 @@ process(const char* imsname1, const char* imsname2)
 
   Mat descriptors_1, descriptors_2;
 
-  extractor.compute( ims1, keypoints_1, descriptors_1 );
-  extractor.compute( ims2, keypoints_2, descriptors_2 );
+  extractor.compute( ims1_gray, keypoints_1, descriptors_1 );
+  extractor.compute( ims2_gray, keypoints_2, descriptors_2 );
 
   //--  Matching descriptor vectors with a brute force matcher
   BFMatcher matcher(NORM_L2);
@@ -69,10 +70,7 @@ process(const char* imsname1, const char* imsname2)
 
   //-- Draw matches
   Mat img_matches;
-  drawMatches( ims1, keypoints_1, ims2, keypoints_2, matches, img_matches );
-
-  //-- Show images with detected (drawn) matches
-  imshow("Appariements Brute Force", img_matches );
+  drawMatches( ims1_gray, keypoints_1, ims2_gray, keypoints_2, matches, img_matches );
 
   //-- Save images with detected (drawn) matches
   imwrite("Appariements_Brute_Force.png", img_matches );
@@ -91,8 +89,6 @@ process(const char* imsname1, const char* imsname2)
     }
   }
 
-  cout << "-- Min dist : " << min_dist << endl;
-
   //-- Draw only "good" matches (i.e. whose distance is less than 3*min_dist,
   //-- or a small arbitary value ( 0.02 ) in the event that min_dist is very
   //-- small)
@@ -105,17 +101,14 @@ process(const char* imsname1, const char* imsname2)
 
   //-- Draw "good" matches and keypoints
   Mat img_tmatches;
-  drawMatches( ims1, keypoints_1, ims2, keypoints_2,
+  drawMatches( ims1_gray, keypoints_1, ims2_gray, keypoints_2,
                good_matches, img_tmatches, Scalar::all(-1), Scalar::all(-1),
                vector<char>());
-
-  //-- Show  images with good (drawn) matches
-  imshow("Appariements seuillés",img_tmatches);
 
   //-- Save images with good (drawn) matches
   imwrite("appariements_seuilles.png", img_tmatches );
 
-  // -- Step 4: Homography -- //
+  // -- Step 4: Homography - Estimate deformation -- //
 
   //-- Localize the object
   std::vector<Point2f> scene_1;
@@ -129,27 +122,49 @@ process(const char* imsname1, const char* imsname2)
 
   Mat ransac_homography = findHomography( scene_2, scene_1, CV_RANSAC );
 
-  //-- Get the corners from the image_1 ( the scene_1 to be "detected" )
+  //-- Get the corners from the image_2 ( the scene_1 to be "detected" )
   std::vector<Point2f> scene_1_corners(4);
   std::vector<Point2f> scene_2_corners(4);
-  scene_2_corners[0] = cvPoint(0,0); scene_2_corners[1] = cvPoint( ims1.cols, 0 );
-  scene_2_corners[2] = cvPoint( ims2.cols, ims2.rows ); scene_2_corners[3] = cvPoint( 0, ims2.rows );
 
-  Mat imd_homography(ims2.size(), CV_8UC1);
+  scene_2_corners[0] = cvPoint(0,0);
+  scene_2_corners[1] = cvPoint( ims2_gray.cols, 0 );
+  scene_2_corners[2] = cvPoint( ims2_gray.cols, ims2_gray.rows );
+  scene_2_corners[3] = cvPoint( 0, ims2_gray.rows );
+
+  Mat imd_homography;
   perspectiveTransform(scene_2_corners, scene_1_corners, ransac_homography);
-  warpPerspective(ims2, imd_homography, ransac_homography, ims1.size()+ims2.size());
+  warpPerspective(ims2_color, imd_homography, ransac_homography, ims1_gray.size()+ims2_gray.size());
 
-  cout << "imd_homography type : " << imd_homography.type() << " | channels : " << imd_homography.channels()  << endl;
+  imwrite("homography.png", imd_homography);
 
-  Mat imd_homography_color(ims2.size(), CV_8UC3);
-  cout << "imd_homography_color type : " << imd_homography_color.type() << " | channels : " << imd_homography_color.channels() << endl;
-  cvtColor(imd_homography, imd_homography_color, CV_GRAY2BGR);
-  imshow("Image 2 déformée par H", imd_homography_color);
-  imwrite("Homography.png", imd_homography_color);
+  //-- Build the diaporama from the previous step
+  Mat imd_panorama(imd_homography,Rect(0,0,ims1_color.cols,ims1_color.rows));
+  ims1_color.copyTo(imd_panorama);
 
-  // Mat imd_panorama(ims2.size(), CV_8UC3);
-  // hcontcat(ims1,imd_homography,imd_panorama);
-  // imshow("panorama",imd_panorama);
+  imwrite("panorama.png", imd_homography);
+
+  cout<<imd_homography.size()<<endl;
+  int xmax=0;
+  int ymax=0;
+  for(int i=0; i<imd_homography.cols;i++){
+    for(int j=0; j<imd_homography.rows; j++){
+    // if(imd_homography.ptr<Vec3b>(i)[j][0] == 0){
+      if( j > xmax && imd_homography.ptr<Vec3b>(i-1)[j][0] > 0 && imd_homography.ptr<Vec3b>(i)[j][0] == 0){
+        xmax = j;
+      }
+      if( i > ymax && imd_homography.ptr<Vec3b>(i)[j-1][0] > 0 && imd_homography.ptr<Vec3b>(i)[j][0] == 0){
+        ymax = i;
+      }
+    // }
+    }
+  }
+
+  cout<<xmax<<" et "<<ymax<<endl;
+  // Rect myROI(0, 0, max ,j_black_p);
+  // Mat final_panorama = imd_homography(myROI);
+  //
+  // imshow("final panorama", final_panorama);
+
   waitKey(0);
 }
 
