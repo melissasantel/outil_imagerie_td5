@@ -51,6 +51,10 @@ process(const char* imsname1, const char* imsname2)
   drawKeypoints( ims1_gray, keypoints_1, img_keypoints_1, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
   drawKeypoints( ims2_gray, keypoints_2, img_keypoints_2, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
 
+  //-- Show the images with detected (drawn) keypoints
+  imshow("Descripteur SURF image 1", img_keypoints_1 );
+  imshow("Descripteur SURF image 2", img_keypoints_2 );
+  waitKey(0);
   //-- Save images with detected (drawn) keypoints
   imwrite("Descripteur_SURF_image_1.png", img_keypoints_1 );
   imwrite("Descripteur_SURF_image_2.png", img_keypoints_2 );
@@ -72,8 +76,11 @@ process(const char* imsname1, const char* imsname2)
   Mat img_matches;
   drawMatches( ims1_gray, keypoints_1, ims2_gray, keypoints_2, matches, img_matches );
 
+  //-- Show the images with detected (drawn) matches
+  imshow("Appariement Brute Force", img_matches );
+  waitKey(0);
   //-- Save images with detected (drawn) matches
-  imwrite("Appariements_Brute_Force.png", img_matches );
+  imwrite("Appariement_Brute_Force.png", img_matches );
 
   // -- Step 3: Determining the good matches --//
   FlannBasedMatcher t_matcher;
@@ -105,8 +112,11 @@ process(const char* imsname1, const char* imsname2)
                good_matches, img_tmatches, Scalar::all(-1), Scalar::all(-1),
                vector<char>());
 
+  //-- Show the image with good (drawn) matches
+  imshow("Appariement seuille", img_tmatches );
+  waitKey(0);
   //-- Save images with good (drawn) matches
-  imwrite("appariements_seuilles.png", img_tmatches );
+  imwrite("appariement_seuille.png", img_tmatches );
 
   // -- Step 4: Homography - Estimate deformation -- //
 
@@ -131,42 +141,54 @@ process(const char* imsname1, const char* imsname2)
   scene_2_corners[2] = cvPoint( ims2_gray.cols, ims2_gray.rows );
   scene_2_corners[3] = cvPoint( 0, ims2_gray.rows );
 
-  Mat imd_homography;
+  Mat imd;
   perspectiveTransform(scene_2_corners, scene_1_corners, ransac_homography);
-  warpPerspective(ims2_color, imd_homography, ransac_homography, ims1_gray.size()+ims2_gray.size());
+  warpPerspective(ims2_color, imd, ransac_homography, ims1_gray.size()+ims2_gray.size());
 
-  imwrite("homography.png", imd_homography);
+  //-- Show the homography
+  imshow("Image 2 deformee par H", imd );
+  waitKey(0);
+  //-- Save the homography
+  imwrite("Image_2_deformee_par_H.png", imd);
 
   //-- Build the diaporama from the previous step
-  Mat imd_panorama(imd_homography,Rect(0,0,ims1_color.cols,ims1_color.rows));
+  Mat imd_panorama(imd,Rect(0,0,ims1_color.cols,ims1_color.rows));
   ims1_color.copyTo(imd_panorama);
 
-  imwrite("panorama.png", imd_homography);
+  //-- Show the panorama generated
+  imshow("Panorama", imd );
+  waitKey(0);
+  //-- Save the panorama generated
+  imwrite("Panorama.png", imd);
 
-  cout<<imd_homography.size()<<endl;
-  int xmax=0;
-  int ymax=0;
+  //-- Make a crop on the previous image of panorama
+  int xmin = 0;
+  int ymin = 0;
+  int xmax = 0;
+  int ymax = 0;
   Vec3b black(0,0,0);
-  for(int i=0; i<imd_homography.cols;i++){
-    for(int j=0; j<imd_homography.rows; j++){
-      if(imd_homography.ptr<Vec3b>(i)[j] == black){
-        if(i > xmax && imd_homography.ptr<Vec3b>(i)[j-1]!= black){
-          xmax = i;
+  for(int i=0; i<imd.rows;i++){
+    for(int j=0; j<imd.cols; j++){
+      if(imd.ptr<Vec3b>(i)[j] == black){
+        if(j > xmax && imd.ptr<Vec3b>(i)[j-1]!= black){
+          xmax = j;
         }
-        if(j > ymax && imd_homography.ptr<Vec3b>(i-1)[j]!= black){
-          ymax = j;
+        if(i > ymax && imd.ptr<Vec3b>(i-1)[j]!= black){
+          ymax = i;
         }
       }
     }
   }
 
-  cout<<xmax<<" et "<<ymax<<endl;
-  Rect myROI(0, 0, xmax ,ymax);
-  Mat final_panorama = imd_homography(myROI);
 
-  imshow("final panorama", final_panorama);
-
+  Rect myROI(xmin, ymin, xmax ,ymax);
+  Mat final_panorama = imd(myROI);
+  //-- Show the croped panorama
+  imshow("Panorama final", final_panorama);
   waitKey(0);
+  //-- Save the croped panorama
+  imwrite("Panorama.png", imd);
+
 }
 
 void
